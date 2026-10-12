@@ -22,8 +22,15 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body)
     });
 
-    const data = await nvidiaResponse.json();
-    return res.status(nvidiaResponse.status).json(data);
+    // Get the response text first instead of assuming it's JSON
+    const responseText = await nvidiaResponse.text();
+
+    // Set the status code matching NVIDIA's response
+    res.status(nvidiaResponse.status);
+    res.setHeader('Content-Type', nvidiaResponse.headers.get('content-type') || 'application/json');
+
+    // Return the text directly (whether it's JSON or an error string)
+    return res.send(responseText);
 
   } catch (error) {
     return res.status(500).json({ error: error.message });
