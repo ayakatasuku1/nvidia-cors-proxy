@@ -1,10 +1,8 @@
 export default async function handler(req, res) {
-  // Add CORS Headers for JanitorAI
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  // Handle browser CORS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -12,7 +10,9 @@ export default async function handler(req, res) {
   try {
     const fetch = (await import('node-fetch')).default;
 
-    // Forward the request to NVIDIA NIM
+    // Log what headers and body we received to debug
+    console.log("Authorization Header present:", !!req.headers.authorization);
+
     const nvidiaResponse = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: 'POST',
       headers: {
@@ -22,17 +22,20 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body)
     });
 
-    // Get the response text first instead of assuming it's JSON
     const responseText = await nvidiaResponse.text();
 
-    // Set the status code matching NVIDIA's response
-    res.status(nvidiaResponse.status);
-    res.setHeader('Content-Type', nvidiaResponse.headers.get('content-type') || 'application/json');
+    // If NVIDIA returned an error, wrap it nicely so JanitorAI displays it readable instead of crashing
+    if (!nvidiaResponse.ok) {
+      return res.status(nvidiaResponse.status).json({
+        error: `NVIDIA API Error (${nvidiaResponse.status}): ${responseText}`
+      });
+    }
 
-    // Return the text directly (whether it's JSON or an error string)
+    res.status(200);
+    res.setHeader('Content-Type', 'application/json');
     return res.send(responseText);
 
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Proxy Crash: " + error.message });
   }
 }
